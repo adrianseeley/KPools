@@ -76,28 +76,35 @@
 
     public static void Main()
     {
+        Random random = new Random();
         List<(List<float> input, List<float> output)> mnistTrain = ReadMNIST("D:/data/mnist_train.csv", max: 1000);
         List<(List<float> input, List<float> output)> mnistTest = ReadMNIST("D:/data/mnist_test.csv", max: 1000);
 
-        using TextWriter tw = new StreamWriter("results.csv", false);
-        tw.WriteLine("k,dimensionCount,indicesPerPool,poolCount,fitness");
+        using TextWriter tw = new StreamWriter("results.csv", true);
+        //tw.WriteLine("k,dimensionCount,indicesPerPool,poolCount,fitness");
 
         int k = 1;
-
-        for (int poolCount = 1; poolCount <= 1000; poolCount += 1)
+        /*for (int indicesPerPool = 1; indicesPerPool <= 500; indicesPerPool++)
         {
-            for (int indicesPerPool = 1; indicesPerPool <= 500; indicesPerPool++)
+            for (int poolCount = 1; poolCount <= 1000; poolCount += 1)
             {
                 for (int dimensionCount = 1; dimensionCount <= mnistTrain[0].input.Count; dimensionCount++)
-                {
-                    KPools kPools = new KPools(k: k, dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, samples: mnistTrain);
-                    float fitness = OneHotFitness(kPools, mnistTest, verbose: false);
-                    tw.WriteLine($"{k},{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
-                    tw.Flush();
-                    Console.WriteLine($"k: {k}, d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, f: {fitness}");
-                }
-            }
+                {*/
+        for (; ; )
+        {
+
+            int dimensionCount = random.Next(1, mnistTest[0].input.Count);
+            int indicesPerPool = random.Next(1, 500);
+            int poolCount = random.Next(1, 1000);
+            KPools kPools = new KPools(k: k, dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, samples: mnistTrain);
+            float fitness = OneHotFitness(kPools, mnistTest, verbose: true);
+            tw.WriteLine($"{k},{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
+            tw.Flush();
+            Console.WriteLine($"k: {k}, d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, f: {fitness}");
         }
+                /*}
+            }
+        }*/
     }
 }
 
