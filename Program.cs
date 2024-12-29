@@ -77,23 +77,24 @@
     public static void Main()
     {
         List<(List<float> input, List<float> output)> mnistTrain = ReadMNIST("D:/data/mnist_train.csv", max: 1000);
-        List<(List<float> input, List<float> output)> mnistTest = ReadMNIST("D:/data/mnist_test.csv");
+        List<(List<float> input, List<float> output)> mnistTest = ReadMNIST("D:/data/mnist_test.csv", max: 1000);
 
-        using TextWriter tw = new StreamWriter("results.csv");
+        using TextWriter tw = new StreamWriter("results.csv", false);
         tw.WriteLine("k,dimensionCount,indicesPerPool,poolCount,fitness");
-        for (int k = 1; k <= 10; k++)
+
+        int k = 1;
+
+        for (int poolCount = 1; poolCount <= 1000; poolCount += 1)
         {
-            for (int dimensionCount = 1; dimensionCount <= 30; dimensionCount++)
+            for (int indicesPerPool = 1; indicesPerPool <= 500; indicesPerPool++)
             {
-                for (int indicesPerPool = k * 2; indicesPerPool <= 500; indicesPerPool += 5)
+                for (int dimensionCount = 1; dimensionCount <= mnistTrain[0].input.Count; dimensionCount++)
                 {
-                    for (int poolCount = 1; poolCount <= 1000; poolCount += 5)
-                    {
-                        KPools kPools = new KPools(k: k, dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, samples: mnistTrain);
-                        float fitness = OneHotFitness(kPools, mnistTest, verbose: false);
-                        tw.WriteLine($"{k},{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
-                        tw.Flush();
-                    }
+                    KPools kPools = new KPools(k: k, dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, samples: mnistTrain);
+                    float fitness = OneHotFitness(kPools, mnistTest, verbose: false);
+                    tw.WriteLine($"{k},{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
+                    tw.Flush();
+                    Console.WriteLine($"k: {k}, d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, f: {fitness}");
                 }
             }
         }
