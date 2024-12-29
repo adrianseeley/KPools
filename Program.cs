@@ -41,32 +41,32 @@
 
     public static float OneHotFitness(KPools kPools, List<(List<float> input, List<float> output)> test, bool verbose)
     {
-        object trackLock = new object();
         int correct = 0;
         int incorrect = 0;
-        Parallel.For(0, test.Count, (index) =>
+        List<float> predictOutput = new List<float>(test[0].output.Count);
+        for (int i = 0; i < test[0].output.Count; i++)
         {
-            int localIndex = index;
-            (List<float> input, List<float> output) sample = test[localIndex];
-            List<float> predictOutput = kPools.Predict(sample.input);
+            predictOutput.Add(0);
+        }
+        for (int testIndex = 0; testIndex < test.Count; testIndex++)
+        {
+            (List<float> input, List<float> output) sample = test[testIndex];
+            kPools.Predict(sample.input, ref predictOutput);
             int predictLabel = predictOutput.IndexOf(predictOutput.Max());
             int actualLabel = sample.output.IndexOf(sample.output.Max());
-            lock (trackLock)
+            if (predictLabel == actualLabel)
             {
-                if (predictLabel == actualLabel)
-                {
-                    correct++;
-                }
-                else
-                {
-                    incorrect++;
-                }
-                if (verbose)
-                {
-                    Console.Write($"\rCorrect: {correct}, Incorrect: {incorrect}, Fitness: {((float)correct / (correct + incorrect))}");
-                }
+                correct++;
             }
-        });
+            else
+            {
+                incorrect++;
+            }
+            if (verbose)
+            {
+                Console.Write($"\rCorrect: {correct}, Incorrect: {incorrect}, Fitness: {((float)correct / (correct + incorrect))}");
+            }
+        }
         if (verbose)
         {
             Console.WriteLine();
@@ -77,13 +77,13 @@
     public static void Main()
     {
         Random random = new Random();
+        int threadCount = 12;
         List<(List<float> input, List<float> output)> mnistTrain = ReadMNIST("D:/data/mnist_train.csv", max: 1000);
         List<(List<float> input, List<float> output)> mnistTest = ReadMNIST("D:/data/mnist_test.csv", max: 1000);
 
-        using TextWriter tw = new StreamWriter("results.csv", true);
-        //tw.WriteLine("k,dimensionCount,indicesPerPool,poolCount,fitness");
+        using TextWriter tw = new StreamWriter("results.csv", false);
+        tw.WriteLine("dimensionCount,indicesPerPool,poolCount,fitness");
 
-        int k = 1;
         /*for (int indicesPerPool = 1; indicesPerPool <= 500; indicesPerPool++)
         {
             for (int poolCount = 1; poolCount <= 1000; poolCount += 1)
@@ -96,11 +96,12 @@
             int dimensionCount = random.Next(1, mnistTest[0].input.Count);
             int indicesPerPool = random.Next(1, 500);
             int poolCount = random.Next(1, 1000);
-            KPools kPools = new KPools(k: k, dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, samples: mnistTrain);
+            KPools kPools = new KPools(dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, threadCount: threadCount, samples: mnistTrain);
             float fitness = OneHotFitness(kPools, mnistTest, verbose: true);
-            tw.WriteLine($"{k},{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
+            kPools.Release();
+            tw.WriteLine($"{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
             tw.Flush();
-            Console.WriteLine($"k: {k}, d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, f: {fitness}");
+            Console.WriteLine($"d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, f: {fitness}");
         }
                 /*}
             }

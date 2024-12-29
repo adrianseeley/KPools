@@ -4,13 +4,18 @@
     public int k;
     public int dimensionCount;
     public int poolCount;
+    public int threadCount;
+    public Barrier startBarrier;
+    public Barrier endBarrier;
     public List<(List<float> input, List<float> output)> samples;
     public List<KPool> kPools;
+    public List<float>? predictionInput;
+    public int[] predictionIndices;
+    public bool dispose;
 
-    public KPools(int k, int dimensionCount, int indiciesPerPool, int poolCount, List<(List<float> input, List<float> output)> samples)
+    public KPools(int dimensionCount, int indiciesPerPool, int poolCount, int threadCount, List<(List<float> input, List<float> output)> samples)
     {
         this.random = new Random();
-        this.k = k;
         this.dimensionCount = dimensionCount;
         this.samples = samples;
         this.kPools = new List<KPool>();
@@ -19,49 +24,97 @@
         {
             int[] dimensions = allDimensions.OrderBy(x => random.Next()).Take(dimensionCount).ToArray();
             int[] indices = Enumerable.Range(0, indiciesPerPool).OrderBy(x => random.Next()).Take(indiciesPerPool).ToArray();
-            kPools.Add(new KPool(k, dimensions, indices));
+            kPools.Add(new KPool(dimensions, indices));
+        }
+        this.predictionIndices = new int[poolCount];
+        this.threadCount = threadCount; 
+        this.startBarrier = new Barrier(threadCount + 1);
+        this.endBarrier = new Barrier(threadCount + 1);
+        this.dispose = false;
+        for (int i = 0; i < threadCount; i++)
+        {
+            Thread thread = new Thread(PredictThread);
+            thread.Start(i);
         }
     }
 
-    public List<float> Predict(List<float> input)
+    public void Release()
     {
-        List<float> output = new List<float>(samples[0].output.Count);
-        for (int i = 0; i < samples[0].output.Count; i++)
+        dispose = true;
+        startBarrier.SignalAndWait();
+    }
+
+    public List<float> Predict(List<float> input, ref List<float> output)
+    {
+        predictionInput = input;
+        startBarrier.SignalAndWait();
+        endBarrier.SignalAndWait();
+        for (int i = 0; i < output.Count; i++)
         {
-            output.Add(0);
+            output[i] = 0;
         }
-        foreach (KPool kPool in kPools)
+        for (int p = 0; p < kPools.Count; p++)
         {
-            List<float> kOutput = kPool.Predict(samples, input);
-            for (int i = 0; i < samples[0].output.Count; i++)
+            int index = predictionIndices[p];
+            for (int i = 0; i < output.Count; i++)
             {
-                output[i] += kOutput[i];
+                output[i] += samples[index].output[i];
             }
         }
-        for (int i = 0; i < samples[0].output.Count; i++)
+        for (int i = 0; i < output.Count; i++)
         {
             output[i] /= kPools.Count;
         }
         return output;
     }
+
+    private void PredictThread(object? param)
+    {
+        if (param == null)
+        {
+            throw new ArgumentNullException(nameof(param));
+        }
+        int threadIndex = (int)param;
+        int poolsPerThread = kPools.Count / threadCount;
+        int start = threadIndex * poolsPerThread;
+        int end = (threadIndex == threadCount - 1) ? kPools.Count : (threadIndex + 1) * poolsPerThread;
+
+        for (; ;)
+        {
+            startBarrier.SignalAndWait();
+            if (dispose)
+            {
+                return;
+            }
+            if (predictionInput == null)
+            {
+                throw new InvalidOperationException("predictionInput is null");
+            }
+            for (int p = start; p < end; p++)
+            {
+                KPool kPool = kPools[p];
+                predictionIndices[p] = kPool.Predict(samples, predictionInput);
+            }
+            endBarrier.SignalAndWait();
+        }
+    }
 }
 
 public class  KPool
 {
-    public int k;
     public int[] dimensions;
     public int[] indices;
 
-    public KPool(int k, int[] dimensions, int[] indices)
+    public KPool(int[] dimensions, int[] indices)
     {
-        this.k = k;
         this.dimensions = dimensions;
         this.indices = indices;
     }
 
-    public List<float> Predict(List<(List<float> input, List<float> output)> samples, List<float> input)
+    public int Predict(List<(List<float> input, List<float> output)> samples, List<float> input)
     {
-        List<IndexDistance> indexDistances = new List<IndexDistance>();
+        int closestIndex = -1;
+        float closestDistance = float.MaxValue;
         foreach(int index in indices)
         {
             float distance = 0;
@@ -70,38 +123,13 @@ public class  KPool
                 distance += MathF.Pow(input[dimension] - samples[index].input[dimension], 2);
             }
             distance = MathF.Sqrt(distance);
-            indexDistances.Add(new IndexDistance(index, distance));
-        }
-        indexDistances.Sort((a, b) => a.distance.CompareTo(b.distance));
-        List<float> output = new List<float>(samples[0].output.Count);
-        for (int i = 0; i < samples[0].output.Count; i++)
-        {
-            output.Add(0);
-        }
-        for (int i = 0; i < k; i++)
-        {
-            for (int j = 0; j < samples[0].output.Count; j++)
+            if (distance < closestDistance)
             {
-                output[j] += samples[indexDistances[i].index].output[j];
+                closestDistance = distance;
+                closestIndex = index;
             }
         }
-        for (int i = 0; i < samples[0].output.Count; i++)
-        {
-            output[i] /= k;
-        }
-        return output;
-    }
-}
-
-public class IndexDistance
-{
-    public int index;
-    public float distance;
-
-    public IndexDistance(int index, float distance)
-    {
-        this.index = index;
-        this.distance = distance;
+        return closestIndex;
     }
 }
 
