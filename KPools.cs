@@ -1,4 +1,6 @@
-﻿public class KPools
+﻿using System.Collections.Generic;
+
+public class KPools
 {
     public Random random;
     public int k;
@@ -7,26 +9,77 @@
     public int threadCount;
     public Barrier startBarrier;
     public Barrier endBarrier;
-    public List<(List<float> input, List<float> output)> samples;
+    public List<Sample> samples;
+    public Dictionary<int, List<Sample>> sampleHistogram;
+    public int classCount;
+    public int minSamplesPerClass;
     public List<KPool> kPools;
     public List<float>? predictionInput;
-    public int[] predictionIndices;
+    public int[] predictions;
     public bool dispose;
 
-    public KPools(int dimensionCount, int indiciesPerPool, int poolCount, int threadCount, List<(List<float> input, List<float> output)> samples)
+    public KPools(int dimensionCount, int classSamplesPerPool, int poolCount, int threadCount, List<Sample> samples)
     {
         this.random = new Random();
         this.dimensionCount = dimensionCount;
         this.samples = samples;
-        this.kPools = new List<KPool>();
+        
+        // create a histogram of samples by their output class
+        this.sampleHistogram = new Dictionary<int, List<Sample>>();
+        foreach(Sample sample in samples)
+        {
+            if (!sampleHistogram.ContainsKey(sample.output))
+            {
+                sampleHistogram[sample.output] = new List<Sample>();
+            }
+            sampleHistogram[sample.output].Add(sample);
+        }
+
+        // count classes
+        this.classCount = sampleHistogram.Count;
+
+        // find the minimum number of samples per class
+        this.minSamplesPerClass = int.MaxValue;
+        foreach (int key in sampleHistogram.Keys)
+        {
+            minSamplesPerClass = Math.Min(minSamplesPerClass, sampleHistogram[key].Count);
+        }
+
+        // if the class samples per pool is greater than the minimum samples per class, throw
+        if (classSamplesPerPool > minSamplesPerClass)
+        {
+            throw new ArgumentException("classSamplesPerPool is greater than the minimum samples per class");
+        }
+
+        // create a list of all available dimensions
         int[] allDimensions = Enumerable.Range(0, samples[0].input.Count).ToArray();
+
+        // create the kPools container
+        this.kPools = new List<KPool>();
+
+        // iterate to create pools
         for (int p = 0; p < poolCount; p++)
         {
+            // randomly select the required number of dimensions for this pool
             int[] dimensions = allDimensions.OrderBy(x => random.Next()).Take(dimensionCount).ToArray();
-            int[] indices = Enumerable.Range(0, indiciesPerPool).OrderBy(x => random.Next()).Take(indiciesPerPool).ToArray();
-            kPools.Add(new KPool(dimensions, indices));
+
+            // create an array of indices for this pool
+            List<Sample> poolSamples = new List<Sample>(classSamplesPerPool * classCount);
+
+            // iterate over the classes
+            foreach(KeyValuePair<int, List<Sample>> sampleHistogramKVP in sampleHistogram)
+            {
+                // randomly select the required number of samples for this class (without replacement)
+                poolSamples.AddRange(sampleHistogramKVP.Value.OrderBy(x => random.Next()).Take(classSamplesPerPool));
+            }
+
+            // create a kpool
+            kPools.Add(new KPool(dimensions, poolSamples));
         }
-        this.predictionIndices = new int[poolCount];
+
+        // create thread setup
+        this.predictionInput = null;
+        this.predictions = new int[poolCount];
         this.threadCount = threadCount; 
         this.startBarrier = new Barrier(threadCount + 1);
         this.endBarrier = new Barrier(threadCount + 1);
@@ -44,27 +97,38 @@
         startBarrier.SignalAndWait();
     }
 
-    public List<float> Predict(List<float> input, ref List<float> output)
+    public int Predict(List<float> input)
     {
+        // set input and start threads, wait for them to finish
         predictionInput = input;
         startBarrier.SignalAndWait();
         endBarrier.SignalAndWait();
-        for (int i = 0; i < output.Count; i++)
-        {
-            output[i] = 0;
-        }
+
+        // gather votes
+        Dictionary<int, int> votes = new Dictionary<int, int>();
         for (int p = 0; p < kPools.Count; p++)
         {
-            int index = predictionIndices[p];
-            for (int i = 0; i < output.Count; i++)
+            int vote = predictions[p];
+            if (!votes.ContainsKey(vote))
             {
-                output[i] += samples[index].output[i];
+                votes[vote] = 0;
+            }
+            votes[vote]++;
+        }
+        
+        // find the majority vote
+        int output = -1;
+        int maxVotes = -1;
+        foreach (int key in votes.Keys)
+        {
+            if (votes[key] > maxVotes)
+            {
+                output = key;
+                maxVotes = votes[key];
             }
         }
-        for (int i = 0; i < output.Count; i++)
-        {
-            output[i] /= kPools.Count;
-        }
+
+        // return majority vote
         return output;
     }
 
@@ -93,7 +157,7 @@
             for (int p = start; p < end; p++)
             {
                 KPool kPool = kPools[p];
-                predictionIndices[p] = kPool.Predict(samples, predictionInput);
+                predictions[p] = kPool.Predict(predictionInput);
             }
             endBarrier.SignalAndWait();
         }
@@ -103,33 +167,33 @@
 public class  KPool
 {
     public int[] dimensions;
-    public int[] indices;
+    public List<Sample> poolSamples;
 
-    public KPool(int[] dimensions, int[] indices)
+    public KPool(int[] dimensions, List<Sample> poolSamples)
     {
         this.dimensions = dimensions;
-        this.indices = indices;
+        this.poolSamples = poolSamples;
     }
 
-    public int Predict(List<(List<float> input, List<float> output)> samples, List<float> input)
+    public int Predict(List<float> input)
     {
-        int closestIndex = -1;
+        int closestClass = -1;
         float closestDistance = float.MaxValue;
-        foreach(int index in indices)
+        foreach(Sample poolSample in poolSamples)
         {
             float distance = 0;
             foreach (int dimension in dimensions)
             {
-                distance += MathF.Pow(input[dimension] - samples[index].input[dimension], 2);
+                distance += MathF.Pow(input[dimension] - poolSample.input[dimension], 2);
             }
             distance = MathF.Sqrt(distance);
             if (distance < closestDistance)
             {
                 closestDistance = distance;
-                closestIndex = index;
+                closestClass = poolSample.output;
             }
         }
-        return closestIndex;
+        return closestClass;
     }
 }
 
