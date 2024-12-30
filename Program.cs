@@ -71,7 +71,6 @@
         // create a list of all available dimensions
         int[] allDimensions = Enumerable.Range(0, mnistTrain[0].input.Count).ToArray();
 
-
         using TextWriter tw = new StreamWriter("results.csv", false);
         tw.WriteLine("dimensionCount,classSamplesPerPool,poolCount,complexity,fitness");
 
@@ -92,13 +91,19 @@
         // sort low to high complexity
         space.Sort((x, y) => x.complexity.CompareTo(y.complexity));
 
-        Parallel.ForEach(space, new ParallelOptions { MaxDegreeOfParallelism = 10 }, (spaceItem) =>
+        object writeLock = new object();
+
+        Parallel.ForEach(space, (spaceItem) =>
         {
             KPoolsSingleThread kPools = new KPoolsSingleThread(spaceItem.dimensionCount, spaceItem.classSamplesPerPool, spaceItem.poolCount, mnistTrain, trainSampleHistogram, minSamplesPerClass, allDimensions);
             float fitness = Fitness(kPools, mnistTest);
-            tw.WriteLine($"{spaceItem.dimensionCount},{spaceItem.classSamplesPerPool},{spaceItem.poolCount},{spaceItem.complexity},{fitness}");
-            tw.Flush();
-            Console.WriteLine($"d: {spaceItem.dimensionCount}, cspp: {spaceItem.classSamplesPerPool}, p: {spaceItem.poolCount}, c: {spaceItem.complexity}, f: {fitness}");
+
+            lock (writeLock)
+            {
+                tw.WriteLine($"{spaceItem.dimensionCount},{spaceItem.classSamplesPerPool},{spaceItem.poolCount},{spaceItem.complexity},{fitness}");
+                tw.Flush();
+                Console.WriteLine($"d: {spaceItem.dimensionCount}, cspp: {spaceItem.classSamplesPerPool}, p: {spaceItem.poolCount}, c: {spaceItem.complexity}, f: {fitness}");
+            }
         });
     }
 }
