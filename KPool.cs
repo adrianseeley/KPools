@@ -18,7 +18,7 @@
             float distance = 0;
             foreach (int dimension in dimensions)
             {
-                distance += MathF.Pow(input[dimension] - poolSample.input[dimension], 2);
+                distance += Math.Abs(input[dimension] - poolSample.input[dimension]);
             }
             if (distance < closestDistance)
             {

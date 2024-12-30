@@ -21,10 +21,10 @@
         this.random = new Random();
         this.dimensionCount = dimensionCount;
         this.samples = samples;
-        
+
         // create a histogram of samples by their output class
         this.sampleHistogram = new Dictionary<int, List<Sample>>();
-        foreach(Sample sample in samples)
+        foreach (Sample sample in samples)
         {
             if (!sampleHistogram.ContainsKey(sample.output))
             {
@@ -65,7 +65,7 @@
             List<Sample> poolSamples = new List<Sample>(classSamplesPerPool * classCount);
 
             // iterate over the classes
-            foreach(KeyValuePair<int, List<Sample>> sampleHistogramKVP in sampleHistogram)
+            foreach (KeyValuePair<int, List<Sample>> sampleHistogramKVP in sampleHistogram)
             {
                 // randomly select the required number of samples for this class (without replacement)
                 poolSamples.AddRange(sampleHistogramKVP.Value.OrderBy(x => random.Next()).Take(classSamplesPerPool));
@@ -78,7 +78,7 @@
         // create thread setup
         this.predictionInput = null;
         this.predictions = new int[poolCount];
-        this.threadCount = threadCount; 
+        this.threadCount = threadCount;
         this.startBarrier = new Barrier(threadCount + 1);
         this.endBarrier = new Barrier(threadCount + 1);
         this.dispose = false;
@@ -113,7 +113,7 @@
             }
             votes[vote]++;
         }
-        
+
         // find the majority vote
         int output = -1;
         int maxVotes = -1;
@@ -141,7 +141,7 @@
         int start = threadIndex * poolsPerThread;
         int end = (threadIndex == threadCount - 1) ? kPools.Count : (threadIndex + 1) * poolsPerThread;
 
-        for (; ;)
+        for (; ; )
         {
             startBarrier.SignalAndWait();
             if (dispose)
