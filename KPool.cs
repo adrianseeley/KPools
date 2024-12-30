@@ -20,7 +20,6 @@
             {
                 distance += MathF.Pow(input[dimension] - poolSample.input[dimension], 2);
             }
-            distance = MathF.Sqrt(distance);
             if (distance < closestDistance)
             {
                 closestDistance = distance;

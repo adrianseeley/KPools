@@ -16,3 +16,5 @@
 4. create a secondary set of k pools about these patch labels to produce a final label
 
 + many such patches would be considered useless (white space looks like all digits equally), and so the previously mentioned complexity reduction and class balancing would likely be useful
+
++ going to try out some different penalty of distance
