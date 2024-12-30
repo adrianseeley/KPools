@@ -1,4 +1,6 @@
-﻿public class Program
+﻿using System.Text;
+
+public class Program
 {
     public static List<Sample> ReadMNIST(string filename, int max = -1)
     {
@@ -53,32 +55,60 @@
         List<Sample> mnistTrain = ReadMNIST("./mnist_train.csv", max: 1000);
         List<Sample> mnistTest = ReadMNIST("./mnist_test.csv", max: 1000);
 
-        // create a histogram of samples by their output class
-        Dictionary<int, List<Sample>> trainSampleHistogram = new Dictionary<int, List<Sample>>();
-        foreach (Sample trainSample in mnistTrain)
+        Patcher patcher = new Patcher(28, 28, 10);
+        List<Sample> trainPatches = patcher.PatchSamples(mnistTrain);
+
+        KPoolsSingleThread patchPools = new KPoolsSingleThread(25, 500, 100, trainPatches);
+
+        int correct = 0;
+        int incorrect = 0;
+        foreach (Sample testSample in mnistTest)
         {
-            if (!trainSampleHistogram.ContainsKey(trainSample.output))
+            List<Sample> testPatches = patcher.PatchSample(testSample);
+            Dictionary<int, int> votes = new Dictionary<int, int>();
+            foreach (Sample testPatch in testPatches)
             {
-                trainSampleHistogram[trainSample.output] = new List<Sample>();
+                int prediction = patchPools.Predict(testPatch.input);
+                if (!votes.ContainsKey(prediction))
+                {
+                    votes[prediction] = 0;
+                }
+                votes[prediction]++;
+                StringBuilder sb = new StringBuilder();
+                sb.Append("Actual: " + testSample.output + " Votes: ");
+                foreach (KeyValuePair<int, int> kvp in votes)
+                {
+                    sb.Append(kvp.Key + ":" + kvp.Value + " ");
+                }
+                Console.WriteLine(sb.ToString());
             }
-            trainSampleHistogram[trainSample.output].Add(trainSample);
+            int majorityVote = -1;
+            int maxVotes = -1;
+            foreach (int key in votes.Keys)
+            {
+                if (votes[key] > maxVotes)
+                {
+                    majorityVote = key;
+                    maxVotes = votes[key];
+                }
+            }
+            if (majorityVote == testSample.output)
+            {
+                correct++;
+            }
+            else
+            {
+                incorrect++;
+            }
+            Console.WriteLine("Correct: " + correct + " Incorrect: " + incorrect);
         }
+        float fitness = (float)correct / (float)mnistTest.Count;
 
-        // count classes
-        int classCount = trainSampleHistogram.Count;
 
-        // find the minimum number of samples per class
-        int minSamplesPerClass = int.MaxValue;
-        foreach (int key in trainSampleHistogram.Keys)
-        {
-            minSamplesPerClass = Math.Min(minSamplesPerClass, trainSampleHistogram[key].Count);
-        }
-
-        // create a list of all available dimensions
-        int[] allDimensions = Enumerable.Range(0, mnistTrain[0].input.Count).ToArray();
-
-        KPoolsSingleThread kPools = new KPoolsSingleThread(28, minSamplesPerClass, 50, mnistTrain, trainSampleHistogram, minSamplesPerClass, allDimensions);
-        float fitness = Fitness(kPools, mnistTest);
+        /*
+                KPoolsSingleThread kPools = new KPoolsSingleThread(28, 50, 50, mnistTrain);
+                float fitness = Fitness(kPools, mnistTest);
+                */
         Console.WriteLine("Fitness: " + fitness);
         Console.ReadLine();
     }
