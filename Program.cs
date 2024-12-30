@@ -82,30 +82,34 @@
         List<(List<float> input, List<float> output)> mnistTest = ReadMNIST("D:/data/mnist_test.csv", max: 1000);
 
         using TextWriter tw = new StreamWriter("results.csv", false);
-        tw.WriteLine("dimensionCount,indicesPerPool,poolCount,fitness");
+        tw.WriteLine("dimensionCount,indicesPerPool,poolCount,complexity,fitness");
 
-        /*for (int indicesPerPool = 1; indicesPerPool <= 500; indicesPerPool++)
+        List<(int indices, int pools, int dimensions, long complexity)> space = new List<(int indices, int pools, int dimensions, long complexity)>();
+
+        for (int indicesPerPool = 1; indicesPerPool <= 500; indicesPerPool += 5)
         {
-            for (int poolCount = 1; poolCount <= 1000; poolCount += 1)
+            for (int poolCount = 1; poolCount <= 500; poolCount += 5)
             {
-                for (int dimensionCount = 1; dimensionCount <= mnistTrain[0].input.Count; dimensionCount++)
-                {*/
-        for (; ; )
-        {
+                for (int dimensionCount = 1; dimensionCount <= mnistTrain[0].input.Count; dimensionCount += 1)
+                {
+                    long complexity = dimensionCount * indicesPerPool * poolCount;
+                    space.Add((indicesPerPool, poolCount, dimensionCount, complexity));
+                }
+            }
+        }
 
-            int dimensionCount = random.Next(1, mnistTest[0].input.Count);
-            int indicesPerPool = random.Next(1, 500);
-            int poolCount = random.Next(1, 1000);
+        // sort low to high complexity
+        space.Sort((x, y) => x.complexity.CompareTo(y.complexity));
+
+        foreach ((int indicesPerPool, int poolCount, int dimensionCount, long complexity) in space)
+        {
             KPools kPools = new KPools(dimensionCount: dimensionCount, indiciesPerPool: indicesPerPool, poolCount: poolCount, threadCount: threadCount, samples: mnistTrain);
             float fitness = OneHotFitness(kPools, mnistTest, verbose: true);
             kPools.Release();
-            tw.WriteLine($"{dimensionCount},{indicesPerPool},{poolCount},{fitness}");
+            tw.WriteLine($"{dimensionCount},{indicesPerPool},{poolCount},{complexity},{fitness}");
             tw.Flush();
-            Console.WriteLine($"d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, f: {fitness}");
+            Console.WriteLine($"d: {dimensionCount}, i: {indicesPerPool}, p: {poolCount}, c: {complexity}, f: {fitness}");
         }
-                /*}
-            }
-        }*/
     }
 }
 
