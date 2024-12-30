@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-public class KPools
+﻿public class KPoolsMultiThread
 {
     public Random random;
     public int k;
@@ -18,7 +16,7 @@ public class KPools
     public int[] predictions;
     public bool dispose;
 
-    public KPools(int dimensionCount, int classSamplesPerPool, int poolCount, int threadCount, List<Sample> samples)
+    public KPoolsMultiThread(int dimensionCount, int classSamplesPerPool, int poolCount, int threadCount, List<Sample> samples)
     {
         this.random = new Random();
         this.dimensionCount = dimensionCount;
@@ -163,37 +161,3 @@ public class KPools
         }
     }
 }
-
-public class  KPool
-{
-    public int[] dimensions;
-    public List<Sample> poolSamples;
-
-    public KPool(int[] dimensions, List<Sample> poolSamples)
-    {
-        this.dimensions = dimensions;
-        this.poolSamples = poolSamples;
-    }
-
-    public int Predict(List<float> input)
-    {
-        int closestClass = -1;
-        float closestDistance = float.MaxValue;
-        foreach(Sample poolSample in poolSamples)
-        {
-            float distance = 0;
-            foreach (int dimension in dimensions)
-            {
-                distance += MathF.Pow(input[dimension] - poolSample.input[dimension], 2);
-            }
-            distance = MathF.Sqrt(distance);
-            if (distance < closestDistance)
-            {
-                closestDistance = distance;
-                closestClass = poolSample.output;
-            }
-        }
-        return closestClass;
-    }
-}
-
