@@ -34,15 +34,33 @@ public class Program
         Random random = new Random();
         List<Sample> mnistTrain = ReadMNIST("D:/data/mnist_train.csv", max: 1000);
         List<Sample> mnistTest = ReadMNIST("D:/data/mnist_test.csv", max: 1000);
+        int dimensionsPerPool = 50;
+        int classSamplesPerPool = 80;
+        int poolCount = 500;
 
-        List<Sample> mnistValidate = mnistTrain.GetRange(500, 500);
-        mnistTrain.RemoveRange(500, 500);
-
-
-        KPools kPools = new KPools(dimensionPerPool: 10, classSamplesPerPool: 5, targetPoolCount: 100, poolCount: 200, mnistTrain, mnistValidate);
+        List<Sample> trainSamples = [
+            .. mnistTrain, 
+            //.. Augment.Translate(mnistTrain, 28, 28, 1, 0),
+            //.. Augment.Translate(mnistTrain, 28, 28, -1, 0),
+            //.. Augment.Translate(mnistTrain, 28, 28, 0, 1),
+            //.. Augment.Translate(mnistTrain, 28, 28, 0, -1),
+        ];
+        KPools kPools = new KPools(dimensionsPerPool, classSamplesPerPool, poolCount, trainSamples);
         float testFitness = kPools.Fitness(mnistTest);
+        Console.WriteLine("Base Fitness: " + testFitness);
 
-        Console.WriteLine("Test Fitness: " + testFitness);
+        trainSamples = [
+            .. mnistTrain,
+            .. Augment.Translate(mnistTrain, 28, 28, 1, 0),
+            .. Augment.Translate(mnistTrain, 28, 28, -1, 0),
+            .. Augment.Translate(mnistTrain, 28, 28, 0, 1),
+            .. Augment.Translate(mnistTrain, 28, 28, 0, -1),
+        ];
+        kPools = new KPools(dimensionsPerPool, classSamplesPerPool, poolCount, trainSamples);
+        testFitness = kPools.Fitness(mnistTest);
+        Console.WriteLine("Augment Fitness: " + testFitness);
+
+
         Console.ReadLine();
     }
 }
