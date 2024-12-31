@@ -29,87 +29,20 @@ public class Program
         return samples;
     }
 
-    public static float Fitness(KPoolsSingleThread kPools, List<Sample> testSamples)
-    {
-        int correct = 0;
-        int incorrect = 0;
-        foreach (Sample testSample in testSamples)
-        {
-            int prediction = kPools.Predict(testSample.input);
-            if (prediction == testSample.output)
-            {
-                correct++;
-            }
-            else
-            {
-                incorrect++;
-            }
-            Console.WriteLine("Correct: " + correct + " Incorrect: " + incorrect);
-        }
-        return (float)correct / (float)testSamples.Count;
-    }
-
     public static void Main()
     {
         Random random = new Random();
-        List<Sample> mnistTrain = ReadMNIST("./mnist_train.csv", max: 1000);
-        List<Sample> mnistTest = ReadMNIST("./mnist_test.csv", max: 1000);
+        List<Sample> mnistTrain = ReadMNIST("D:/data/mnist_train.csv", max: 1000);
+        List<Sample> mnistTest = ReadMNIST("D:/data/mnist_test.csv", max: 1000);
 
-        Patcher patcher = new Patcher(28, 28, 10);
-        List<Sample> trainPatches = patcher.PatchSamples(mnistTrain);
-
-        KPoolsSingleThread patchPools = new KPoolsSingleThread(25, 500, 100, trainPatches);
-
-        int correct = 0;
-        int incorrect = 0;
-        foreach (Sample testSample in mnistTest)
-        {
-            List<Sample> testPatches = patcher.PatchSample(testSample);
-            Dictionary<int, int> votes = new Dictionary<int, int>();
-            foreach (Sample testPatch in testPatches)
-            {
-                int prediction = patchPools.Predict(testPatch.input);
-                if (!votes.ContainsKey(prediction))
-                {
-                    votes[prediction] = 0;
-                }
-                votes[prediction]++;
-                StringBuilder sb = new StringBuilder();
-                sb.Append("Actual: " + testSample.output + " Votes: ");
-                foreach (KeyValuePair<int, int> kvp in votes)
-                {
-                    sb.Append(kvp.Key + ":" + kvp.Value + " ");
-                }
-                Console.WriteLine(sb.ToString());
-            }
-            int majorityVote = -1;
-            int maxVotes = -1;
-            foreach (int key in votes.Keys)
-            {
-                if (votes[key] > maxVotes)
-                {
-                    majorityVote = key;
-                    maxVotes = votes[key];
-                }
-            }
-            if (majorityVote == testSample.output)
-            {
-                correct++;
-            }
-            else
-            {
-                incorrect++;
-            }
-            Console.WriteLine("Correct: " + correct + " Incorrect: " + incorrect);
-        }
-        float fitness = (float)correct / (float)mnistTest.Count;
+        List<Sample> mnistValidate = mnistTrain.GetRange(500, 500);
+        mnistTrain.RemoveRange(500, 500);
 
 
-        /*
-                KPoolsSingleThread kPools = new KPoolsSingleThread(28, 50, 50, mnistTrain);
-                float fitness = Fitness(kPools, mnistTest);
-                */
-        Console.WriteLine("Fitness: " + fitness);
+        KPools kPools = new KPools(dimensionPerPool: 10, classSamplesPerPool: 5, targetPoolCount: 100, poolCount: 200, mnistTrain, mnistValidate);
+        float testFitness = kPools.Fitness(mnistTest);
+
+        Console.WriteLine("Test Fitness: " + testFitness);
         Console.ReadLine();
     }
 }
